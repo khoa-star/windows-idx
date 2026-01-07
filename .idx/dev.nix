@@ -16,12 +16,7 @@
     # Dev tools
     git
     unzip
-    busybox
-
-    # Utils (xem network, pci…)
-    iproute2
-    pciutils
-    usbutils
+    
   ];
 
   # Biến môi trường (an toàn với IDX)
