@@ -6,10 +6,10 @@ ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
 ISO_FILE="win11-gamer.iso"
 
 DISK_FILE="/var/win11.qcow2"
-DISK_SIZE="64G"
+DISK_SIZE="200G"
 
-RAM="8G"
-CORES="4"
+RAM="32G"
+CORES="8"
 
 VNC_DISPLAY=":0"
 RDP_PORT="3389"
@@ -22,7 +22,6 @@ NGROK_TOKEN="38WO5iYPn4Hq5A5SUOjtGptsxfE_7jDB4PmSF78GKcAguUo1H"
 NGROK_DIR="$HOME/.ngrok"
 NGROK_BIN="$NGROK_DIR/ngrok"
 NGROK_CFG="$NGROK_DIR/ngrok.yml"
-NGROK_LOG="$NGROK_DIR/ngrok.log"
 
 ### CHECK ###
 [ -e /dev/kvm ] || { echo "❌ No /dev/kvm"; exit 1; }
@@ -35,10 +34,8 @@ cd "$WORKDIR"
 [ -f "$DISK_FILE" ] || qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
 
 if [ ! -f "$FLAG_FILE" ]; then
-  [ -f "$ISO_FILE" ] || wget --no-check-certificate \
-    -O "$ISO_FILE" "$ISO_URL"
+  [ -f "$ISO_FILE" ] || wget --no-check-certificate -O "$ISO_FILE" "$ISO_URL"
 fi
-
 
 ############################
 # BACKGROUND FILE CREATOR #
@@ -58,8 +55,7 @@ FILE_PID=$!
 mkdir -p "$NGROK_DIR"
 
 if [ ! -f "$NGROK_BIN" ]; then
-  curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
-  | tar -xz -C "$NGROK_DIR"
+  curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xz -C "$NGROK_DIR"
   chmod +x "$NGROK_BIN"
 fi
 
@@ -76,12 +72,11 @@ tunnels:
 EOF
 
 pkill -f "$NGROK_BIN" 2>/dev/null || true
-"$NGROK_BIN" start --all --config "$NGROK_CFG" \
-  --log=stdout > "$NGROK_LOG" 2>&1 &
-sleep 5
+"$NGROK_BIN" start --all --config "$NGROK_CFG" >/dev/null 2>&1 &
+sleep 6
 
-VNC_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p')
-RDP_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p')
+VNC_ADDR=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'tcp://[^"]+' | sed -n '1p')
+RDP_ADDR=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'tcp://[^"]+' | sed -n '2p')
 
 echo "🌍 VNC PUBLIC : $VNC_ADDR"
 echo "🌍 RDP PUBLIC : $RDP_ADDR"
