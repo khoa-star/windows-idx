@@ -6,23 +6,15 @@ ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
 ISO_FILE="win11-gamer.iso"
 
 DISK_FILE="/var/win11.qcow2"
-DISK_SIZE="64G"
+DISK_SIZE="200G"
 
-RAM="8G"
-CORES="4"
+RAM="32G"
+CORES="8"
 
-VNC_DISPLAY=":0"
 RDP_PORT="3389"
 
 FLAG_FILE="installed.flag"
 WORKDIR="$HOME/windows-idx"
-
-### NGROK ###
-NGROK_TOKEN="38WO5iYPn4Hq5A5SUOjtGptsxfE_7jDB4PmSF78GKcAguUo1H"
-NGROK_DIR="$HOME/.ngrok"
-NGROK_BIN="$NGROK_DIR/ngrok"
-NGROK_CFG="$NGROK_DIR/ngrok.yml"
-NGROK_LOG="$NGROK_DIR/ngrok.log"
 
 ### CHECK ###
 [ -e /dev/kvm ] || { echo "❌ No /dev/kvm"; exit 1; }
@@ -35,10 +27,8 @@ cd "$WORKDIR"
 [ -f "$DISK_FILE" ] || qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
 
 if [ ! -f "$FLAG_FILE" ]; then
-  [ -f "$ISO_FILE" ] || wget --no-check-certificate \
-    -O "$ISO_FILE" "$ISO_URL"
+  [ -f "$ISO_FILE" ] || wget --no-check-certificate -O "$ISO_FILE" "$ISO_URL"
 fi
-
 
 ############################
 # BACKGROUND FILE CREATOR #
@@ -53,38 +43,22 @@ fi
 FILE_PID=$!
 
 #################
-# NGROK START  #
+# TAILSCALE    #
 #################
-mkdir -p "$NGROK_DIR"
+command -v tailscale >/dev/null || curl -fsSL https://tailscale.com/install.sh | sh
 
-if [ ! -f "$NGROK_BIN" ]; then
-  curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
-  | tar -xz -C "$NGROK_DIR"
-  chmod +x "$NGROK_BIN"
+sudo tailscale up --ssh --accept-dns=false 2>/dev/null || true
+
+if tailscale status 2>/dev/null | grep -qi "Logged out"; then
+  LOGIN_URL=$(tailscale login --timeout=0 2>&1 | grep -o 'https://[^ ]*')
+  echo "🔑 LOGIN TAILSCALE:"
+  echo "$LOGIN_URL"
+  read -rp "👉 Login xong nhấn ENTER..."
 fi
 
-cat > "$NGROK_CFG" <<EOF
-version: "2"
-authtoken: $NGROK_TOKEN
-tunnels:
-  vnc:
-    proto: tcp
-    addr: 5900
-  rdp:
-    proto: tcp
-    addr: 3389
-EOF
-
-pkill -f "$NGROK_BIN" 2>/dev/null || true
-"$NGROK_BIN" start --all --config "$NGROK_CFG" \
-  --log=stdout > "$NGROK_LOG" 2>&1 &
-sleep 5
-
-VNC_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p')
-RDP_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p')
-
-echo "🌍 VNC PUBLIC : $VNC_ADDR"
-echo "🌍 RDP PUBLIC : $RDP_ADDR"
+TS_IP=$(tailscale ip -4 | head -n1)
+echo "🌍 TAILSCALE IP : $TS_IP"
+echo "🖥️  RDP        : $TS_IP:$RDP_PORT"
 
 #################
 # RUN QEMU     #
@@ -104,7 +78,7 @@ if [ ! -f "$FLAG_FILE" ]; then
     -boot order=d \
     -netdev user,id=net0,hostfwd=tcp::3389-:3389 \
     -device e1000,netdev=net0 \
-    -vnc "$VNC_DISPLAY" \
+    -display none \
     -usb -device usb-tablet &
 
   QEMU_PID=$!
@@ -115,7 +89,6 @@ if [ ! -f "$FLAG_FILE" ]; then
       touch "$FLAG_FILE"
       kill "$QEMU_PID"
       kill "$FILE_PID"
-      pkill -f "$NGROK_BIN"
       rm -f "$ISO_FILE"
       echo "✅ Hoàn tất – lần sau boot thẳng qcow2"
       exit 0
@@ -135,6 +108,6 @@ else
     -boot order=c \
     -netdev user,id=net0,hostfwd=tcp::3389-:3389 \
     -device e1000,netdev=net0 \
-    -vnc "$VNC_DISPLAY" \
+    -display none \
     -usb -device usb-tablet
 fi
