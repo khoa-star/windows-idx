@@ -11,7 +11,6 @@ DISK_SIZE="200G"
 RAM="32G"
 CORES="8"
 
-VNC_DISPLAY=":0"
 RDP_PORT="3389"
 
 FLAG_FILE="installed.flag"
@@ -55,7 +54,8 @@ FILE_PID=$!
 mkdir -p "$NGROK_DIR"
 
 if [ ! -f "$NGROK_BIN" ]; then
-  curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xz -C "$NGROK_DIR"
+  curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
+  | tar -xz -C "$NGROK_DIR"
   chmod +x "$NGROK_BIN"
 fi
 
@@ -63,22 +63,28 @@ cat > "$NGROK_CFG" <<EOF
 version: "2"
 authtoken: $NGROK_TOKEN
 tunnels:
-  vnc:
-    proto: tcp
-    addr: 5900
   rdp:
     proto: tcp
     addr: 3389
 EOF
 
 pkill -f "$NGROK_BIN" 2>/dev/null || true
-"$NGROK_BIN" start --all --config "$NGROK_CFG" >/dev/null 2>&1 &
-sleep 6
+"$NGROK_BIN" start rdp --config "$NGROK_CFG" >/dev/null 2>&1 &
 
-VNC_ADDR=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'tcp://[^"]+' | sed -n '1p')
-RDP_ADDR=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'tcp://[^"]+' | sed -n '2p')
+echo "⏳ Đang đợi ngrok cấp TCP..."
 
-echo "🌍 VNC PUBLIC : $VNC_ADDR"
+RDP_ADDR=""
+for i in {1..20}; do
+  RDP_ADDR=$(curl -s http://127.0.0.1:4040/api/tunnels | grep -oE 'tcp://[^"]+')
+  [ -n "$RDP_ADDR" ] && break
+  sleep 1
+done
+
+if [ -z "$RDP_ADDR" ]; then
+  echo "❌ Ngrok không cấp TCP (free chỉ cho 1 tunnel)"
+  exit 1
+fi
+
 echo "🌍 RDP PUBLIC : $RDP_ADDR"
 
 #################
@@ -99,7 +105,7 @@ if [ ! -f "$FLAG_FILE" ]; then
     -boot order=d \
     -netdev user,id=net0,hostfwd=tcp::3389-:3389 \
     -device e1000,netdev=net0 \
-    -vnc "$VNC_DISPLAY" \
+    -display none \
     -usb -device usb-tablet &
 
   QEMU_PID=$!
@@ -130,6 +136,6 @@ else
     -boot order=c \
     -netdev user,id=net0,hostfwd=tcp::3389-:3389 \
     -device e1000,netdev=net0 \
-    -vnc "$VNC_DISPLAY" \
+    -display none \
     -usb -device usb-tablet
 fi
