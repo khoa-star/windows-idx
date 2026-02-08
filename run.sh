@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
+ISO_URL="https://software-static.download.prss.microsoft.com/pr/download/20348.1.210507-1500.fe_release_amd64fre_SERVER_LOF_PACKAGES_OEM.iso"
 ISO_FILE="win11-gamer.iso"
 
 DISK_FILE="/var/win11.qcow2"
@@ -18,7 +18,7 @@ FLAG_FILE="installed.flag"
 WORKDIR="$HOME/windows-idx"
 
 ### NGROK ###
-NGROK_TOKEN="38WO5iYPn4Hq5A5SUOjtGptsxfE_7jDB4PmSF78GKcAguUo1H"
+NGROK_TOKEN="39Hv1yTGhaaAFaYQ7ZWEVjCybzL_2Nn9FsQLbqRzTqNxGpw3U"
 NGROK_DIR="$HOME/.ngrok"
 NGROK_BIN="$NGROK_DIR/ngrok"
 NGROK_CFG="$NGROK_DIR/ngrok.yml"
@@ -45,8 +45,8 @@ fi
 ############################
 (
   while true; do
-    echo "Lộc Nguyễn đẹp troai" > locnguyen.txt
-    echo "[$(date '+%H:%M:%S')] Đã tạo locnguyen.txt"
+    echo "Windows Info" > windowsinfo.txt
+    echo "[$(date '+%H:%M:%S')] Đã tạo windowsinfo.txt"
     sleep 300
   done
 ) &
@@ -80,8 +80,8 @@ pkill -f "$NGROK_BIN" 2>/dev/null || true
   --log=stdout > "$NGROK_LOG" 2>&1 &
 sleep 5
 
-VNC_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p')
-RDP_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p')
+RDP_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p')
+VNC_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p')
 
 echo "🌍 VNC PUBLIC : $VNC_ADDR"
 echo "🌍 RDP PUBLIC : $RDP_ADDR"
