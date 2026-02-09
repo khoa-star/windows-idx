@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://dn710207.ca.archive.org/0/items/windows-server-2016_202102/Windows%20Server%202016.iso"
+ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
 ISO_FILE="win11-gamer.iso"
 
 DISK_FILE="/var/win11.qcow2"
