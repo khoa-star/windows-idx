@@ -24,6 +24,11 @@ NGROK_BIN="$NGROK_DIR/ngrok"
 NGROK_CFG="$NGROK_DIR/ngrok.yml"
 NGROK_LOG="$NGROK_DIR/ngrok.log"
 
+### DISCORD WEBHOOK (THÊM) ###
+# Dán webhook URL của Discord vào đây (Settings -> Integrations -> Webhooks)
+DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"  # hoặc set env DISCORD_WEBHOOK_URL
+SEND_DISCORD="${SEND_DISCORD:-1}"               # 1=send, 0=off
+
 ### CHECK ###
 [ -e /dev/kvm ] || { echo "❌ No /dev/kvm"; exit 1; }
 command -v qemu-system-x86_64 >/dev/null || { echo "❌ No qemu"; exit 1; }
@@ -35,10 +40,8 @@ cd "$WORKDIR"
 [ -f "$DISK_FILE" ] || qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
 
 if [ ! -f "$FLAG_FILE" ]; then
-  [ -f "$ISO_FILE" ] || wget --no-check-certificate \
-    -O "$ISO_FILE" "$ISO_URL"
+  [ -f "$ISO_FILE" ] || wget --no-check-certificate -O "$ISO_FILE" "$ISO_URL"
 fi
-
 
 ############################
 # BACKGROUND FILE CREATOR #
@@ -59,7 +62,7 @@ mkdir -p "$NGROK_DIR"
 
 if [ ! -f "$NGROK_BIN" ]; then
   curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz \
-  | tar -xz -C "$NGROK_DIR"
+    | tar -xz -C "$NGROK_DIR"
   chmod +x "$NGROK_BIN"
 fi
 
@@ -76,15 +79,67 @@ tunnels:
 EOF
 
 pkill -f "$NGROK_BIN" 2>/dev/null || true
-"$NGROK_BIN" start --all --config "$NGROK_CFG" \
-  --log=stdout > "$NGROK_LOG" 2>&1 &
-sleep 5
+"$NGROK_BIN" start --all --config "$NGROK_CFG" --log=stdout > "$NGROK_LOG" 2>&1 &
 
-RDP_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p')
-VNC_ADDR=$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p')
+# ---- FIX: LẤY URL THEO TÊN TUNNEL QUA NGROK API (KHÔNG BỊ ĐẢO) ----
+get_ngrok_url() {
+  # $1 = tunnel name (vnc|rdp)
+  python3 - "$1" <<'PY'
+import json, sys, urllib.request
+name = sys.argv[1]
+try:
+    data = urllib.request.urlopen("http://127.0.0.1:4040/api/tunnels", timeout=2).read()
+    j = json.loads(data.decode("utf-8"))
+    for t in j.get("tunnels", []):
+        if t.get("name") == name:
+            print(t.get("public_url",""))
+            raise SystemExit(0)
+except Exception:
+    pass
+print("")
+PY
+}
+
+# chờ ngrok api lên và tunnel ready
+VNC_ADDR=""
+RDP_ADDR=""
+for _ in {1..25}; do
+  VNC_ADDR="$(get_ngrok_url vnc)"
+  RDP_ADDR="$(get_ngrok_url rdp)"
+  if [[ -n "$VNC_ADDR" && -n "$RDP_ADDR" ]]; then
+    break
+  fi
+  sleep 0.4
+done
+
+if [[ -z "$VNC_ADDR" || -z "$RDP_ADDR" ]]; then
+  echo "❌ Không lấy được public_url từ ngrok API."
+  echo "👉 Mở log để xem: $NGROK_LOG"
+  # fallback cuối cùng (có thể vẫn đảo, nhưng còn hơn trống)
+  RDP_ADDR="$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p' || true)"
+  VNC_ADDR="$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p' || true)"
+fi
 
 echo "🌍 VNC PUBLIC : $VNC_ADDR"
 echo "🌍 RDP PUBLIC : $RDP_ADDR"
+
+# ---- THÊM: GỬI DISCORD WEBHOOK ----
+send_discord() {
+  local msg="$1"
+  [[ "$SEND_DISCORD" = "1" ]] || return 0
+  [[ -n "$DISCORD_WEBHOOK_URL" ]] || return 0
+  # escape JSON đơn giản
+  local payload
+  payload="$(python3 - <<PY
+import json
+print(json.dumps({"content": "$msg"}))
+PY
+)"
+  curl -sS -H "Content-Type: application/json" -X POST \
+    -d "$payload" "$DISCORD_WEBHOOK_URL" >/dev/null || true
+}
+
+send_discord "✅ NGROK TCP TUNNELS\n🖥️ VNC: $VNC_ADDR\n🧩 RDP: $RDP_ADDR\n📄 Log: $NGROK_LOG"
 
 #################
 # RUN QEMU     #
