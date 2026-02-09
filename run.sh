@@ -26,7 +26,7 @@ NGROK_LOG="$NGROK_DIR/ngrok.log"
 
 ### DISCORD WEBHOOK (THÊM) ###
 # Dán webhook URL của Discord vào đây (Settings -> Integrations -> Webhooks)
-DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}"  # hoặc set env DISCORD_WEBHOOK_URL
+DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1470331414191804497/YoNo5kv686atFliJdcsRtRwLdpuJDqBcdcR7BSw7y8kx2FArjXYg8Vmg3sQzjqrTrKlm"  # hoặc set env DISCORD_WEBHOOK_URL
 SEND_DISCORD="${SEND_DISCORD:-1}"               # 1=send, 0=off
 
 ### CHECK ###
