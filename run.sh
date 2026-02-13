@@ -18,6 +18,7 @@ FLAG_FILE="installed.flag"
 WORKDIR="$HOME/windows-idx"
 
 ### NGROK ###
+NGROK_TOKEN="39b3jTZdvMRcYqsJpvutZzASzuR_31eximZ1Tg5Bn91ky4gwu"
 NGROK_DIR="$HOME/.ngrok"
 NGROK_BIN="$NGROK_DIR/ngrok"
 NGROK_CFG="$NGROK_DIR/ngrok.yml"
@@ -30,9 +31,6 @@ SEND_DISCORD="${SEND_DISCORD:-1}"
 ### CHECK ###
 [ -e /dev/kvm ] || { echo "❌ No /dev/kvm"; exit 1; }
 command -v qemu-system-x86_64 >/dev/null || { echo "❌ No qemu"; exit 1; }
-
-# 🔥 BẮT BUỘC PHẢI CÓ SECRET
-: "${NGROK_AUTH_TOKEN:?❌ NGROK_AUTH_TOKEN chưa được set}"
 
 ### PREP ###
 mkdir -p "$WORKDIR"
@@ -66,8 +64,8 @@ if [ ! -f "$NGROK_BIN" ]; then
   chmod +x "$NGROK_BIN"
 fi
 
-# add token từ secret
-"$NGROK_BIN" config add-authtoken "$NGROK_AUTH_TOKEN"
+# Add authtoken trực tiếp
+"$NGROK_BIN" config add-authtoken "$NGROK_TOKEN"
 
 cat > "$NGROK_CFG" <<EOF
 version: "2"
