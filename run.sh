@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
+ISO_URL="https://archive.org/download/en_windows_server_2012_r2_x64_dvd_27079461/en_windows_server_2012_r2_x64_dvd_2707946.iso"
 ISO_FILE="winserver2012.iso"
 
 DISK_FILE="/var/windows.qcow2"
@@ -31,10 +31,9 @@ chmod 755 "$WORKDIR"
 
 if [ ! -f "$FLAG_FILE" ]; then
   if [ ! -f "$ISO_FILE" ]; then
-    echo "📥 Đang tải Windows Server 2012 R2..."
+    echo "📥 Download Windows Server 2012 R2..."
     wget --continue --no-check-certificate --show-progress -O "$ISO_FILE" "$ISO_URL"
-    echo "✅ Tải xong!"
-    ls -lh "$ISO_FILE"
+    echo "✅ Download done"
   fi
 fi
 
@@ -43,7 +42,6 @@ fi
 #########################
 BORE_DIR="$HOME/.bore"
 BORE_BIN="$BORE_DIR/bore"
-BORE_LOG="$WORKDIR/bore.log"
 BORE_URL_FILE="$WORKDIR/bore_url.txt"
 
 mkdir -p "$BORE_DIR"
@@ -55,12 +53,12 @@ if [ ! -f "$BORE_BIN" ]; then
 fi
 
 pkill bore 2>/dev/null || true
-rm -f "$BORE_LOG" "$BORE_URL_FILE"
+rm -f "$BORE_URL_FILE"
 sleep 2
 
 (
   while true; do
-    "$BORE_BIN" local 5900 --to bore.pub 2>&1 | tee -a "$BORE_LOG" | while read line; do
+    "$BORE_BIN" local 5900 --to bore.pub 2>&1 | while read line; do
       if echo "$line" | grep -q "bore.pub:"; then
         echo "$line" | grep -oP 'bore\.pub:\d+' > "$BORE_URL_FILE"
       fi
@@ -70,7 +68,7 @@ sleep 2
 ) &
 BORE_KEEPER_PID=$!
 
-echo -n "⏳ Chờ Bore"
+echo -n "⏳ Waiting Bore"
 for i in {1..15}; do
   sleep 1
   echo -n "."
@@ -83,20 +81,20 @@ echo ""
 if [ -f "$BORE_URL_FILE" ]; then
   BORE_ADDR=$(cat "$BORE_URL_FILE")
 else
-  BORE_ADDR="Chờ..."
+  BORE_ADDR="Pending..."
 fi
 
 echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "🌍 VNC: $BORE_ADDR"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 ############################
 # SEND TO DISCORD WEBHOOK #
 ############################
 curl -H "Content-Type: application/json" \
      -X POST \
-     -d "{\"content\":\"🖥️ Windows Server 2012 R2 VM Started\nVNC: $BORE_ADDR\"}" \
+     -d "{\"content\":\"🖥️ Windows Server 2012 R2 Started\nVNC: $BORE_ADDR\"}" \
      "$WEBHOOK_URL" >/dev/null 2>&1 || true
 
 #################
@@ -105,19 +103,14 @@ curl -H "Content-Type: application/json" \
 if [ ! -f "$FLAG_FILE" ]; then
 
   echo ""
-  echo "⚠️  CHẾ ĐỘ CÀI WINDOWS SERVER 2012 R2"
+  echo "⚠️ INSTALL MODE - WINDOWS SERVER 2012 R2"
+  echo "Inside VNC:"
+  echo "1. Install now"
+  echo "2. Custom install"
+  echo "3. Select disk → Next"
+  echo "4. Set Administrator password"
   echo ""
-  echo "📋 TRONG VNC:"
-  echo "   1. Chọn Language → Next"
-  echo "   2. Click 'Install now'"
-  echo "   3. Chọn bản Standard/Datacenter"
-  echo "   4. Accept License"
-  echo "   5. Chọn 'Custom: Install Windows only'"
-  echo "   6. Chọn ổ đĩa → Next"
-  echo "   7. Chờ cài đặt"
-  echo "   8. Đặt mật khẩu Administrator"
-  echo ""
-  echo "👉 Sau khi cài xong và vào Desktop, gõ 'xong'"
+  echo "After finished, type: xong"
   echo ""
 
   qemu-system-x86_64 \
@@ -126,11 +119,11 @@ if [ ! -f "$FLAG_FILE" ]; then
     -smp "$CORES" \
     -m "$RAM" \
     -machine q35 \
-    -drive file="$DISK_FILE",if=virtio,format=qcow2 \
+    -drive file="$DISK_FILE",if=ide,format=qcow2 \
     -cdrom "$ISO_FILE" \
     -boot order=d \
     -netdev user,id=net0 \
-    -device virtio-net,netdev=net0 \
+    -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
     -vga std &
@@ -138,14 +131,14 @@ if [ ! -f "$FLAG_FILE" ]; then
   QEMU_PID=$!
 
   while true; do
-    read -rp "👉 Gõ 'xong': " DONE
+    read -rp "Type 'xong': " DONE
     if [ "$DONE" = "xong" ]; then
       touch "$FLAG_FILE"
       kill "$QEMU_PID" 2>/dev/null || true
       kill "$BORE_KEEPER_PID" 2>/dev/null || true
       pkill bore 2>/dev/null || true
       rm -f "$ISO_FILE"
-      echo "✅ Done!"
+      echo "✅ Installation completed"
       exit 0
     fi
   done
@@ -160,10 +153,10 @@ else
     -smp "$CORES" \
     -m "$RAM" \
     -machine q35 \
-    -drive file="$DISK_FILE",if=virtio,format=qcow2 \
+    -drive file="$DISK_FILE",if=ide,format=qcow2 \
     -boot order=c \
     -netdev user,id=net0 \
-    -device virtio-net,netdev=net0 \
+    -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
     -vga std
