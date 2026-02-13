@@ -24,9 +24,10 @@ NGROK_BIN="$NGROK_DIR/ngrok"
 NGROK_CFG="$NGROK_DIR/ngrok.yml"
 NGROK_LOG="$NGROK_DIR/ngrok.log"
 
-### DISCORD WEBHOOK ###
-DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1340139027759628348/4zhG5Xd5MiV6UsD_dEqdet296bXQGEDXmxzWpnk-sX6zYRQYRq_hO0NBJcBlaZimHVcX"
-SEND_DISCORD="${SEND_DISCORD:-1}"
+### DISCORD WEBHOOK (THÊM) ###
+# Dán webhook URL của Discord vào đây (Settings -> Integrations -> Webhooks)
+DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1340139027759628348/4zhG5Xd5MiV6UsD_dEqdet296bXQGEDXmxzWpnk-sX6zYRQYRq_hO0NBJcBlaZimHVcX"  # hoặc set env DISCORD_WEBHOOK_URL
+SEND_DISCORD="${SEND_DISCORD:-1}"               # 1=send, 0=off
 
 ### CHECK ###
 [ -e /dev/kvm ] || { echo "❌ No /dev/kvm"; exit 1; }
@@ -48,6 +49,7 @@ fi
 (
   while true; do
     echo "Windows Info" > windowsinfo.txt
+    echo "[$(date '+%H:%M:%S')] Đã tạo windowsinfo.txt"
     sleep 300
   done
 ) &
@@ -64,11 +66,9 @@ if [ ! -f "$NGROK_BIN" ]; then
   chmod +x "$NGROK_BIN"
 fi
 
-# Add authtoken trực tiếp
-"$NGROK_BIN" config add-authtoken "$NGROK_TOKEN"
-
 cat > "$NGROK_CFG" <<EOF
 version: "2"
+authtoken: $NGROK_TOKEN
 tunnels:
   vnc:
     proto: tcp
@@ -81,11 +81,9 @@ EOF
 pkill -f "$NGROK_BIN" 2>/dev/null || true
 "$NGROK_BIN" start --all --config "$NGROK_CFG" --log=stdout > "$NGROK_LOG" 2>&1 &
 
-#################
-# GET NGROK URL #
-#################
-
+# ---- FIX: LẤY URL THEO TÊN TUNNEL QUA NGROK API (KHÔNG BỊ ĐẢO) ----
 get_ngrok_url() {
+  # $1 = tunnel name (vnc|rdp)
   python3 - "$1" <<'PY'
 import json, sys, urllib.request
 name = sys.argv[1]
@@ -102,6 +100,7 @@ print("")
 PY
 }
 
+# chờ ngrok api lên và tunnel ready
 VNC_ADDR=""
 RDP_ADDR=""
 for _ in {1..25}; do
@@ -113,29 +112,41 @@ for _ in {1..25}; do
   sleep 0.4
 done
 
+if [[ -z "$VNC_ADDR" || -z "$RDP_ADDR" ]]; then
+  echo "❌ Không lấy được public_url từ ngrok API."
+  echo "👉 Mở log để xem: $NGROK_LOG"
+  # fallback cuối cùng (có thể vẫn đảo, nhưng còn hơn trống)
+  RDP_ADDR="$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '1p' || true)"
+  VNC_ADDR="$(grep -oE 'tcp://[^ ]+' "$NGROK_LOG" | sed -n '2p' || true)"
+fi
+
 echo "🌍 VNC PUBLIC : $VNC_ADDR"
 echo "🌍 RDP PUBLIC : $RDP_ADDR"
 
-#################
-# DISCORD SEND #
-#################
-
+# ---- THÊM: GỬI DISCORD WEBHOOK ----
 send_discord() {
+  local msg="$1"
   [[ "$SEND_DISCORD" = "1" ]] || return 0
   [[ -n "$DISCORD_WEBHOOK_URL" ]] || return 0
-  curl -sS -H "Content-Type: application/json" \
-    -X POST \
-    -d "{\"content\":\"VNC: $VNC_ADDR\nRDP: $RDP_ADDR\"}" \
-    "$DISCORD_WEBHOOK_URL" >/dev/null || true
+  # escape JSON đơn giản
+  local payload
+  payload="$(python3 - <<PY
+import json
+print(json.dumps({"content": "$msg"}))
+PY
+)"
+  curl -sS -H "Content-Type: application/json" -X POST \
+    -d "$payload" "$DISCORD_WEBHOOK_URL" >/dev/null || true
 }
 
-send_discord
+send_discord "✅ NGROK TCP TUNNELS\n🖥️ VNC: $VNC_ADDR\n🧩 RDP: $RDP_ADDR\n📄 Log: $NGROK_LOG"
 
 #################
 # RUN QEMU     #
 #################
-
 if [ ! -f "$FLAG_FILE" ]; then
+  echo "⚠️  CHẾ ĐỘ CÀI ĐẶT WINDOWS"
+  echo "👉 Cài xong quay lại nhập: xong"
 
   qemu-system-x86_64 \
     -enable-kvm \
@@ -161,11 +172,13 @@ if [ ! -f "$FLAG_FILE" ]; then
       kill "$FILE_PID"
       pkill -f "$NGROK_BIN"
       rm -f "$ISO_FILE"
+      echo "✅ Hoàn tất – lần sau boot thẳng qcow2"
       exit 0
     fi
   done
 
 else
+  echo "✅ Windows đã cài – boot thường"
 
   qemu-system-x86_64 \
     -enable-kvm \
@@ -179,5 +192,4 @@ else
     -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet
-
 fi
