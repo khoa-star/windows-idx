@@ -6,10 +6,10 @@ ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
 ISO_FILE="win11-gamer.iso"
 
 DISK_FILE="/var/win11.qcow2"
-DISK_SIZE="64G"
+DISK_SIZE="100G"
 
-RAM="8G"
-CORES="4"
+RAM="16G"
+CORES="8"
 
 VNC_DISPLAY=":0"
 RDP_PORT="3389"
@@ -26,7 +26,7 @@ NGROK_LOG="$NGROK_DIR/ngrok.log"
 
 ### DISCORD WEBHOOK (THÊM) ###
 # Dán webhook URL của Discord vào đây (Settings -> Integrations -> Webhooks)
-DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1470356599464919136/XmdBlWXAQN-qO-13q_ABLHPTgo54c6TAepCBALSa49BLW6dwu1ShwEKmHH6oWqI46N40"  # hoặc set env DISCORD_WEBHOOK_URL
+DISCORD_WEBHOOK_URL="https://discord.com/api/webhooks/1470356599464919136/XmdBlWXAQN-qO-13q_ABLHPTgo54c6TAepCBALSa49BLW6dwu1Shw2929382846N40"  # hoặc set env DISCORD_WEBHOOK_URL
 SEND_DISCORD="${SEND_DISCORD:-1}"               # 1=send, 0=off
 
 ### CHECK ###
