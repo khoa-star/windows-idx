@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://archive.org/download/win-8.1-super-lite-2017-by-cm-team-pk/Win%208.1%20Super%20Lite%202017%20By%20CmTeamPk.iso"
+ISO_URL="https://archive.org/download/windows-10-lite-edition-19h2-x64/Windows%2010%20Lite%20Edition%2019H2%20x64.iso"
 ISO_FILE="winserver2012.iso"
 
 DISK_FILE="/var/windows.qcow2"
