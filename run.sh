@@ -30,6 +30,25 @@ chmod 755 "$WORKDIR"
 
 [ -f "$DISK_FILE" ] || qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
 
+############################
+# FIXED ISO DOWNLOAD PART #
+############################
+
+if [ -f "$ISO_FILE" ]; then
+  if [ ! -s "$ISO_FILE" ]; then
+    echo "⚠️ ISO tồn tại nhưng 0 byte → tải lại..."
+    rm -f "$ISO_FILE"
+  else
+    echo "✅ ISO đã tồn tại → bỏ qua tải"
+  fi
+fi
+
+if [ ! -f "$ISO_FILE" ]; then
+  echo "📥 Download Windows Server 2012 R2..."
+  curl -L --fail --progress-bar -o "$ISO_FILE" "$ISO_URL"
+  echo "✅ Download done"
+fi
+
 #########################
 # BORE AUTO-RESTART    #
 #########################
@@ -50,7 +69,6 @@ pkill bore 2>/dev/null || true
 rm -f "$BORE_URL_FILE" "$BORE_RDP_URL_FILE"
 sleep 2
 
-# VNC Bore
 (
   while true; do
     "$BORE_BIN" local 5900 --to bore.pub 2>&1 | while read line; do
@@ -63,7 +81,6 @@ sleep 2
 ) &
 BORE_VNC_PID=$!
 
-# RDP Bore
 (
   while true; do
     "$BORE_BIN" local 3389 --to bore.pub 2>&1 | while read line; do
@@ -95,9 +112,6 @@ echo "🌍 VNC: $VNC_ADDR"
 echo "🖥️ RDP: $RDP_ADDR"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-############################
-# SEND TO DISCORD WEBHOOK #
-############################
 for HOOK in "$WEBHOOK_URL" "$WEBHOOK_URL2"; do
 curl -H "Content-Type: application/json" \
      -X POST \
@@ -108,6 +122,7 @@ done
 #################
 # RUN QEMU     #
 #################
+
 if [ ! -f "$FLAG_FILE" ]; then
 
   qemu-system-x86_64 \
