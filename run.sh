@@ -30,28 +30,16 @@ chmod 755 "$WORKDIR"
 
 [ -f "$DISK_FILE" ] || qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
 
-############################
-# FIXED ISO DOWNLOAD PART #
-############################
-
 if [ -f "$ISO_FILE" ]; then
   if [ ! -s "$ISO_FILE" ]; then
-    echo "⚠️ ISO tồn tại nhưng 0 byte → tải lại..."
     rm -f "$ISO_FILE"
-  else
-    echo "✅ ISO đã tồn tại → bỏ qua tải"
   fi
 fi
 
 if [ ! -f "$ISO_FILE" ]; then
-  echo "📥 Download Windows Server 2012 R2..."
   curl -L --fail --progress-bar -o "$ISO_FILE" "$ISO_URL"
-  echo "✅ Download done"
 fi
 
-#########################
-# BORE AUTO-RESTART    #
-#########################
 BORE_DIR="$HOME/.bore"
 BORE_BIN="$BORE_DIR/bore"
 BORE_URL_FILE="$WORKDIR/bore_vnc.txt"
@@ -93,24 +81,15 @@ BORE_VNC_PID=$!
 ) &
 BORE_RDP_PID=$!
 
-echo -n "⏳ Waiting Bore"
 for i in {1..20}; do
   sleep 1
-  echo -n "."
   if [ -f "$BORE_URL_FILE" ] && [ -f "$BORE_RDP_URL_FILE" ]; then
     break
   fi
 done
-echo ""
 
 VNC_ADDR=$(cat "$BORE_URL_FILE" 2>/dev/null || echo "Pending...")
 RDP_ADDR=$(cat "$BORE_RDP_URL_FILE" 2>/dev/null || echo "Pending...")
-
-echo ""
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🌍 VNC: $VNC_ADDR"
-echo "🖥️ RDP: $RDP_ADDR"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 for HOOK in "$WEBHOOK_URL" "$WEBHOOK_URL2"; do
 curl -H "Content-Type: application/json" \
@@ -134,7 +113,7 @@ if [ ! -f "$FLAG_FILE" ]; then
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
     -cdrom "$ISO_FILE" \
     -boot order=d \
-    -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=8.8.8.8 \
+    -netdev bridge,id=net0,br=br0 \
     -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
@@ -150,7 +129,7 @@ else
     -machine q35 \
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
     -boot order=c \
-    -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=8.8.8.8 \
+    -netdev bridge,id=net0,br=br0 \
     -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
