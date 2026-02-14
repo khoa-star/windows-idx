@@ -30,23 +30,13 @@ chmod 755 "$WORKDIR"
 
 [ -f "$DISK_FILE" ] || qemu-img create -f qcow2 "$DISK_FILE" "$DISK_SIZE"
 
-if [ ! -f "$FLAG_FILE" ]; then
-  if [ ! -f "$ISO_FILE" ]; then
-    echo "📥 Download Windows Server 2012 R2..."
-    wget --continue --no-check-certificate --show-progress -O "$ISO_FILE" "$ISO_URL"
-    echo "✅ Download done"
-  fi
-fi
-
-echo "📥 Preparing Chrome installer..."
-wget -q https://dl.google.com/chrome/install/latest/chrome/installers/GoogleChromeStandaloneEnterprise64.msi -O "$WORKDIR/chrome.msi" || true
-
 #########################
 # BORE AUTO-RESTART    #
 #########################
 BORE_DIR="$HOME/.bore"
 BORE_BIN="$BORE_DIR/bore"
-BORE_URL_FILE="$WORKDIR/bore_url.txt"
+BORE_URL_FILE="$WORKDIR/bore_vnc.txt"
+BORE_RDP_URL_FILE="$WORKDIR/bore_rdp.txt"
 
 mkdir -p "$BORE_DIR"
 
@@ -57,9 +47,10 @@ if [ ! -f "$BORE_BIN" ]; then
 fi
 
 pkill bore 2>/dev/null || true
-rm -f "$BORE_URL_FILE"
+rm -f "$BORE_URL_FILE" "$BORE_RDP_URL_FILE"
 sleep 2
 
+# VNC Bore
 (
   while true; do
     "$BORE_BIN" local 5900 --to bore.pub 2>&1 | while read line; do
@@ -70,27 +61,38 @@ sleep 2
     sleep 2
   done
 ) &
-BORE_KEEPER_PID=$!
+BORE_VNC_PID=$!
+
+# RDP Bore
+(
+  while true; do
+    "$BORE_BIN" local 3389 --to bore.pub 2>&1 | while read line; do
+      if echo "$line" | grep -q "bore.pub:"; then
+        echo "$line" | grep -oP 'bore\.pub:\d+' > "$BORE_RDP_URL_FILE"
+      fi
+    done
+    sleep 2
+  done
+) &
+BORE_RDP_PID=$!
 
 echo -n "⏳ Waiting Bore"
-for i in {1..15}; do
+for i in {1..20}; do
   sleep 1
   echo -n "."
-  if [ -f "$BORE_URL_FILE" ]; then
+  if [ -f "$BORE_URL_FILE" ] && [ -f "$BORE_RDP_URL_FILE" ]; then
     break
   fi
 done
 echo ""
 
-if [ -f "$BORE_URL_FILE" ]; then
-  BORE_ADDR=$(cat "$BORE_URL_FILE")
-else
-  BORE_ADDR="Pending..."
-fi
+VNC_ADDR=$(cat "$BORE_URL_FILE" 2>/dev/null || echo "Pending...")
+RDP_ADDR=$(cat "$BORE_RDP_URL_FILE" 2>/dev/null || echo "Pending...")
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🌍 VNC: $BORE_ADDR"
+echo "🌍 VNC: $VNC_ADDR"
+echo "🖥️ RDP: $RDP_ADDR"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 ############################
@@ -99,7 +101,7 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 for HOOK in "$WEBHOOK_URL" "$WEBHOOK_URL2"; do
 curl -H "Content-Type: application/json" \
      -X POST \
-     -d "{\"content\":\"🖥️ Windows Server 2012 R2 Started\nVNC: $BORE_ADDR\"}" \
+     -d "{\"content\":\"🖥️ Windows Server 2012 R2 Started\nVNC: $VNC_ADDR\nRDP: $RDP_ADDR\"}" \
      "$HOOK" >/dev/null 2>&1 || true
 done
 
@@ -108,11 +110,6 @@ done
 #################
 if [ ! -f "$FLAG_FILE" ]; then
 
-  echo ""
-  echo "⚠️ INSTALL MODE - WINDOWS SERVER 2012 R2"
-  echo "After finished, type: xong"
-  echo ""
-
   qemu-system-x86_64 \
     -enable-kvm \
     -cpu host \
@@ -120,33 +117,15 @@ if [ ! -f "$FLAG_FILE" ]; then
     -m "$RAM" \
     -machine q35 \
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
-    -drive file="$WORKDIR/chrome.msi",if=ide,media=cdrom,readonly=on \
     -cdrom "$ISO_FILE" \
     -boot order=d \
     -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=8.8.8.8 \
     -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
-    -vga std &
-
-  QEMU_PID=$!
-
-  while true; do
-    read -rp "Type 'xong': " DONE
-    if [ "$DONE" = "xong" ]; then
-      touch "$FLAG_FILE"
-      kill "$QEMU_PID" 2>/dev/null || true
-      kill "$BORE_KEEPER_PID" 2>/dev/null || true
-      pkill bore 2>/dev/null || true
-      rm -f "$ISO_FILE"
-      echo "✅ Installation completed"
-      exit 0
-    fi
-  done
+    -vga std
 
 else
-
-  echo "✅ Boot Windows Server 2012 R2"
 
   qemu-system-x86_64 \
     -enable-kvm \
@@ -155,7 +134,6 @@ else
     -m "$RAM" \
     -machine q35 \
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
-    -drive file="$WORKDIR/chrome.msi",if=ide,media=cdrom,readonly=on \
     -boot order=c \
     -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=8.8.8.8 \
     -device e1000,netdev=net0 \
