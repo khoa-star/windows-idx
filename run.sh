@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
+ISO_URL="https://archive.org/download/win-8.1-super-lite-2017-by-cm-team-pk/Win%208.1%20Super%20Lite%202017%20By%20CmTeamPk.iso"
 ISO_FILE="winserver2012.iso"
 
 DISK_FILE="/var/windows.qcow2"
