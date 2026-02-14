@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195167&clcid=0x409&culture=en-us&country=US"
+ISO_URL="https://archive.org/download/win-8.1-english-x-64-x-86/Win8.1_English_x64.iso"
 ISO_FILE="winserver2012.iso"
 
 DISK_FILE="/var/windows.qcow2"
