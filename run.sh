@@ -2,7 +2,7 @@
 set -e
 
 ### CONFIG ###
-ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195443"
+ISO_URL="https://go.microsoft.com/fwlink/p/?LinkID=2195167&clcid=0x409&culture=en-us&country=US"
 ISO_FILE="winserver2012.iso"
 
 DISK_FILE="/var/windows.qcow2"
