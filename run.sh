@@ -14,6 +14,7 @@ CORES="8"
 VNC_DISPLAY=":0"
 
 WEBHOOK_URL="https://discord.com/api/webhooks/1340139027759628348/4zhG5Xd5MiV6UsD_dEqdet296bXQGEDXmxzWpnk-sX6zYRQYRq_hO0NBJcBlaZimHVcX"
+WEBHOOK_URL2="https://discord.com/api/webhooks/1339941775879438407/q1hvW9PTcOxvs6SIwdXEDjfH9fH2i8XHX2zlcmF2FZw4n8kljQvMYfwTxI0cCEJ0I3QL"
 
 FLAG_FILE="installed.flag"
 WORKDIR="$HOME/windows-vm"
@@ -36,6 +37,9 @@ if [ ! -f "$FLAG_FILE" ]; then
     echo "✅ Download done"
   fi
 fi
+
+echo "📥 Preparing Chrome installer..."
+wget -q https://dl.google.com/chrome/install/latest/chrome/installers/GoogleChromeStandaloneEnterprise64.msi -O "$WORKDIR/chrome.msi" || true
 
 #########################
 # BORE AUTO-RESTART    #
@@ -92,10 +96,12 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 ############################
 # SEND TO DISCORD WEBHOOK #
 ############################
+for HOOK in "$WEBHOOK_URL" "$WEBHOOK_URL2"; do
 curl -H "Content-Type: application/json" \
      -X POST \
      -d "{\"content\":\"🖥️ Windows Server 2012 R2 Started\nVNC: $BORE_ADDR\"}" \
-     "$WEBHOOK_URL" >/dev/null 2>&1 || true
+     "$HOOK" >/dev/null 2>&1 || true
+done
 
 #################
 # RUN QEMU     #
@@ -104,12 +110,6 @@ if [ ! -f "$FLAG_FILE" ]; then
 
   echo ""
   echo "⚠️ INSTALL MODE - WINDOWS SERVER 2012 R2"
-  echo "Inside VNC:"
-  echo "1. Install now"
-  echo "2. Custom install"
-  echo "3. Select disk → Next"
-  echo "4. Set Administrator password"
-  echo ""
   echo "After finished, type: xong"
   echo ""
 
@@ -120,9 +120,10 @@ if [ ! -f "$FLAG_FILE" ]; then
     -m "$RAM" \
     -machine q35 \
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
+    -drive file="$WORKDIR/chrome.msi",if=ide,media=cdrom,readonly=on \
     -cdrom "$ISO_FILE" \
     -boot order=d \
-    -netdev user,id=net0 \
+    -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=8.8.8.8 \
     -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
@@ -154,8 +155,9 @@ else
     -m "$RAM" \
     -machine q35 \
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
+    -drive file="$WORKDIR/chrome.msi",if=ide,media=cdrom,readonly=on \
     -boot order=c \
-    -netdev user,id=net0 \
+    -netdev user,id=net0,net=10.0.2.0/24,host=10.0.2.2,dns=8.8.8.8 \
     -device e1000,netdev=net0 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
