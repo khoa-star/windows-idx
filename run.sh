@@ -113,8 +113,7 @@ if [ ! -f "$FLAG_FILE" ]; then
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
     -cdrom "$ISO_FILE" \
     -boot order=d \
-    -netdev bridge,id=net0,br=br0 \
-    -device e1000,netdev=net0 \
+    -nic user,model=e1000,hostfwd=tcp::3389-:3389 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
     -vga std
@@ -129,8 +128,7 @@ else
     -machine q35 \
     -drive file="$DISK_FILE",if=ide,format=qcow2 \
     -boot order=c \
-    -netdev bridge,id=net0,br=br0 \
-    -device e1000,netdev=net0 \
+    -nic user,model=e1000,hostfwd=tcp::3389-:3389 \
     -vnc "$VNC_DISPLAY" \
     -usb -device usb-tablet \
     -vga std
