@@ -1,11 +1,10 @@
 #!/usr/bin/env bash
 set -e
 
-### CONFIG ###
-ISO_URL="https://archive.org/download/android-x-86-11-r-arm-x86-64-iso/Android-x86%2011-R%202022-05-04%20%28x86_64%29%20k5.4.140-M21-arm-noGapps-addViaBrowser-by-Xigo.iso"
-ISO_FILE="android11.iso"
+ISO_URL="https://archive.org/download/windows-10-lite-edition-19h2-x64/Windows%2010%20Lite%20Edition%2019H2%20x64.iso"
+ISO_FILE="winserver2012.iso"
 
-DISK_FILE="/var/android.qcow2"
+DISK_FILE="/var/windows.qcow2"
 DISK_SIZE="100G"
 
 RAM="16G"
@@ -13,17 +12,15 @@ CORES="8"
 
 VNC_DISPLAY=":0"
 
-WEBHOOK_URL="https://discord.com/api/webhooks/1340139027759628348/4zhG5Xd5MiV6UsD_dEqdet296bXQGEDXmxzWpnk-sX6zYRQYRq_hO0NBJcBlaZimHVcX"
+WEBHOOK_URL="https://discord.com/api/webhooks/1340139027759628348/4zhG5Xd5MiV6UsD_dEqdet296bXQGEDXmxzWpnk-sX6zYRq_hO0NBJcBlaZimHVcX"
 WEBHOOK_URL2="https://discord.com/api/webhooks/1339941775879438407/q1hvW9PTcOxvs6SIwdXEDjfH9fH2i8XHX2zlcmF2FZw4n8kljQvMYfwTxI0cCEJ0I3QL"
 
 FLAG_FILE="installed.flag"
-WORKDIR="$HOME/android-vm"
+WORKDIR="$HOME/windows-vm"
 
-### CHECK ###
-[ -e /dev/kvm ] || { echo "❌ No /dev/kvm"; exit 1; }
-command -v qemu-system-x86_64 >/dev/null || { echo "❌ No qemu"; exit 1; }
+[ -e /dev/kvm ] || { echo "No /dev/kvm"; exit 1; }
+command -v qemu-system-x86_64 >/dev/null || { echo "No qemu"; exit 1; }
 
-### PREP ###
 mkdir -p "$WORKDIR"
 cd "$WORKDIR"
 chmod 755 "$WORKDIR"
@@ -42,8 +39,8 @@ fi
 
 BORE_DIR="$HOME/.bore"
 BORE_BIN="$BORE_DIR/bore"
-BORE_VNC_FILE="$WORKDIR/bore_vnc.txt"
-BORE_ADB_FILE="$WORKDIR/bore_adb.txt"
+BORE_URL_FILE="$WORKDIR/bore_vnc.txt"
+BORE_RDP_URL_FILE="$WORKDIR/bore_rdp.txt"
 
 mkdir -p "$BORE_DIR"
 
@@ -54,14 +51,14 @@ if [ ! -f "$BORE_BIN" ]; then
 fi
 
 pkill bore 2>/dev/null || true
-rm -f "$BORE_VNC_FILE" "$BORE_ADB_FILE"
+rm -f "$BORE_URL_FILE" "$BORE_RDP_URL_FILE"
 sleep 2
 
 (
   while true; do
     "$BORE_BIN" local 5900 --to bore.pub 2>&1 | while read line; do
       if echo "$line" | grep -q "bore.pub:"; then
-        echo "$line" | grep -oP 'bore\.pub:\d+' > "$BORE_VNC_FILE"
+        echo "$line" | grep -oP 'bore\.pub:\d+' > "$BORE_URL_FILE"
       fi
     done
     sleep 2
@@ -70,9 +67,9 @@ sleep 2
 
 (
   while true; do
-    "$BORE_BIN" local 5555 --to bore.pub 2>&1 | while read line; do
+    "$BORE_BIN" local 3389 --to bore.pub 2>&1 | while read line; do
       if echo "$line" | grep -q "bore.pub:"; then
-        echo "$line" | grep -oP 'bore\.pub:\d+' > "$BORE_ADB_FILE"
+        echo "$line" | grep -oP 'bore\.pub:\d+' > "$BORE_RDP_URL_FILE"
       fi
     done
     sleep 2
@@ -81,38 +78,38 @@ sleep 2
 
 for i in {1..20}; do
   sleep 1
-  if [ -f "$BORE_VNC_FILE" ] && [ -f "$BORE_ADB_FILE" ]; then
+  if [ -f "$BORE_URL_FILE" ] && [ -f "$BORE_RDP_URL_FILE" ]; then
     break
   fi
 done
 
-VNC_ADDR=$(cat "$BORE_VNC_FILE" 2>/dev/null || echo "Pending...")
-ADB_ADDR=$(cat "$BORE_ADB_FILE" 2>/dev/null || echo "Pending...")
+VNC_ADDR=$(cat "$BORE_URL_FILE" 2>/dev/null || echo "Pending...")
+RDP_ADDR=$(cat "$BORE_RDP_URL_FILE" 2>/dev/null || echo "Pending...")
 
 for HOOK in "$WEBHOOK_URL" "$WEBHOOK_URL2"; do
 curl -H "Content-Type: application/json" \
      -X POST \
-     -d "{\"content\":\"📱 Android 11 VM Started\nVNC: $VNC_ADDR\nADB: $ADB_ADDR\"}" \
+     -d "{\"content\":\"Windows VM Started\nVNC: $VNC_ADDR\nRDP: $RDP_ADDR\"}" \
      "$HOOK" >/dev/null 2>&1 || true
 done
-
-#################
-# RUN QEMU     #
-#################
 
 if [ ! -f "$FLAG_FILE" ]; then
 
   qemu-system-x86_64 \
     -enable-kvm \
+    -machine q35,accel=kvm \
     -cpu host \
-    -smp "$CORES" \
+    -smp "$CORES",sockets=1,cores="$CORES",threads=1 \
     -m "$RAM" \
-    -machine q35 \
-    -drive file="$DISK_FILE",if=ide,format=qcow2 \
+    -rtc base=localtime \
+    -drive file="$DISK_FILE",if=none,id=drive0,format=qcow2,cache=writeback,aio=native \
+    -device ich9-ahci,id=ahci \
+    -device ide-hd,drive=drive0,bus=ahci.0 \
     -cdrom "$ISO_FILE" \
     -boot order=d \
-    -nic user,model=e1000,hostfwd=tcp::5555-:5555 \
+    -nic user,model=e1000,hostfwd=tcp::3389-:3389 \
     -vnc "$VNC_DISPLAY" \
+    -display none \
     -usb -device usb-tablet \
     -vga std
 
@@ -120,14 +117,18 @@ else
 
   qemu-system-x86_64 \
     -enable-kvm \
+    -machine q35,accel=kvm \
     -cpu host \
-    -smp "$CORES" \
+    -smp "$CORES",sockets=1,cores="$CORES",threads=1 \
     -m "$RAM" \
-    -machine q35 \
-    -drive file="$DISK_FILE",if=ide,format=qcow2 \
+    -rtc base=localtime \
+    -drive file="$DISK_FILE",if=none,id=drive0,format=qcow2,cache=writeback,aio=native \
+    -device ich9-ahci,id=ahci \
+    -device ide-hd,drive=drive0,bus=ahci.0 \
     -boot order=c \
-    -nic user,model=e1000,hostfwd=tcp::5555-:5555 \
+    -nic user,model=e1000,hostfwd=tcp::3389-:3389 \
     -vnc "$VNC_DISPLAY" \
+    -display none \
     -usb -device usb-tablet \
     -vga std
 fi
